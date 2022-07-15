@@ -668,6 +668,7 @@ spec:
       targetPort: 8787
   selector:
     io.kompose.service: shoppingcart-ui
+  type: LoadBalancer
 status:
   loadBalancer: {}
 ---
