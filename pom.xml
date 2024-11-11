@@ -24,5 +24,18 @@
 		<module>zipkin-server</module>
 	</modules>
 
+	<properties>
+		<sonar.projectKey>PabloCollazoCollarte_spring-boot-microservices-series</sonar.projectKey>
+		<sonar.projectName>spring-boot-microservices-series</sonar.projectName>
+		<sonar.organization>pablocollazocollarte</sonar.organization>
+		<sonar.verbose>true</sonar.verbose>
+		<sonar.scm.provider>git</sonar.scm.provider>
+		<sonar.sourceEncoding>UTF-8</sonar.sourceEncoding>
+		<sonar.java.binaries>**/target/classes</sonar.java.binaries>
+		<sonar.sources>catalog-service/src/main,config-server/src/main,hystrix-dashboard/src/main,inventory-service/src/main,oauth2-server/src/main,order-service/src/main,service-registry/src/main,shoppingcart-ui/src/main,zipkin-server/src/main</sonar.sources>
+		<sonar.tests>catalog-service/src/main/test,config-server/src/main/test,hystrix-dashboard/src/main/test,inventory-service/src/main/test,oauth2-server/src/main/test,order-service/src/main/test,service-registry/src/main/test,shoppingcart-ui/src/main/test,zipkin-server/src/main/test</sonar.tests>
+		<sonar.junit.reportPaths>catalog-service/target/surefire-reports,config-server/target/surefire-reports,hystrix-dashboard/target/surefire-reports,inventory-service/target/surefire-reports,oauth2-server/target/surefire-reports,order-service/target/surefire-reports,service-registry/target/surefire-reports,shoppingcart-ui/target/surefire-reports,zipkin-server/target/surefire-reports</sonar.junit.reportPaths>
+		<sonar.java.libraries>${env.HOME}/.m2/repository/org/projectlombok/lombok/**/*.jar</sonar.java.libraries>
+	</properties>
 
 </project>
