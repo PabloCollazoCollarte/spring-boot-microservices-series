@@ -23,7 +23,6 @@
               GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
             with:
-              projectBaseDir: code
               args: >
                 -Dsonar.branch.name=${{ github.base_ref || github.ref_name }}
     
