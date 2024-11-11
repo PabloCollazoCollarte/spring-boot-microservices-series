@@ -17,6 +17,19 @@
             with:
               fetch-depth: 0
 
+          - name: Sonar / Setup Node version
+            uses: inditex/gha-ivmactions/setup-tool@v1
+            with:
+              local-directory: code
+              tool-name: ivm-node
+              tool-version: 20
+      
+          - name: Sonar / Setup Java version
+            uses: inditex/gha-ivmactions/setup-tool@v1
+            with:
+              tool-name: ivm-java
+              tool-version: openjdk-17
+
           - name: SonarCloud / Run Maven Sonar goal
             env:
               PR_HEAD_REF: ${{ github.head_ref }}
