@@ -33,13 +33,29 @@
               mvn --version
               mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
+          - name: Set Java and Node for Sonarcloud plugin
+            run: echo -e "java temurin-17.0.8+7\nnodejs 20.10.0" > sonarcloud-tool_versions
+
+          - name: Setup IVM environment
+            uses: asdf-vm/actions/install@v3
+            with:
+              tool_versions: sonarcloud-tool_versions
+
+
+          - name: Setup Java environment vars
+            run: |
+              JAVA_HOME="$(asdf where java)"
+              echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+              echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
+              echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
+
           - name: SonarCloud / Run Maven Sonar goal
             env:
               PR_HEAD_REF: ${{ github.head_ref }}
               LOGIN: ${{ secrets.SONAR_TOKEN }}
               SONAR_SCANNER_OPTS: ''
             run: |
-              mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.8.0.2131:sonar \
+              mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
                 -Dsonar.host.url="https://sonarcloud.io/" \
                 -Dsonar.token="${LOGIN}" \
                 -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
