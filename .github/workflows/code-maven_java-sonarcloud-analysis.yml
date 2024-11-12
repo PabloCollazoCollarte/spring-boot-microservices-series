@@ -65,7 +65,7 @@
                 -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
                 -Dsonar.projectVersion="${{ steps.version.outputs.app-version }}" \
                 -Dsonar.host.url="https://sonarcloud.io/" \
-                -Dsonar.organization=PabloCollazoCollarte \
+                -Dsonar.organization=pablocollazocollarte \
                 -Dsonar.token="${LOGIN}" \
                 -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
                 -Dsonar.pullrequest.branch="$PR_HEAD_REF" \
