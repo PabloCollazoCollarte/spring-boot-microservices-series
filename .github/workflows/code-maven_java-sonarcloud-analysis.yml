@@ -29,7 +29,6 @@
 
           - name: Run unit tests
             if: github.event_name != 'release'
-            working-directory: code
             run: |
               mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
