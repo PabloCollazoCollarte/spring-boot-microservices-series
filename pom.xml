@@ -38,4 +38,26 @@
 		<sonar.java.libraries>${env.HOME}/.m2/repository/org/projectlombok/lombok/**/*.jar</sonar.java.libraries>
 	</properties>
 
+	<build>
+		<pluginManagement>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.3.1</version>
+				<configuration>
+					<!-- Sets the VM argument line used when unit tests are run. -->
+					<argLine>${surefireArgLine}</argLine>
+					<!-- Skips unit tests based on -DskipUTs -->
+					<skipTests>${skipUTs}</skipTests>
+					<!-- Excludes integration tests when unit tests are run. -->
+					<excludes>
+						<exclude>**/IT*.java</exclude>
+					</excludes>
+				</configuration>
+		</plugin>
+		</plugins>
+		</pluginManagement>
+	</build>
+
 </project>
