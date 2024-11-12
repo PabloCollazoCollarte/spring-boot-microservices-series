@@ -27,6 +27,12 @@
               echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
               echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
 
+          - name: Run unit tests
+            if: github.event_name != 'release'
+            working-directory: code
+            run: |
+              mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
+
           - name: SonarCloud / Run Maven Sonar goal
             env:
               PR_HEAD_REF: ${{ github.head_ref }}
