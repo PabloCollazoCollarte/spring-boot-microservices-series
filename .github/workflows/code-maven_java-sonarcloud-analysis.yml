@@ -36,8 +36,8 @@
           - name: Store project version
             id: version
             run: |
-              echo "app-version=$(xmllint --xpath "/*[name()='project']/*[name()='version']/text()" pom.xml)" >> "$GITHUB_OUTPUT"
-              echo "app-name=$(xmllint --xpath "/*[name()='project']/*[name()='artifactId']/text()" pom.xml)" >> "$GITHUB_OUTPUT"
+              echo "app-version=$(yq -oy '.project.version' pom.xml)" >> "$GITHUB_OUTPUT"
+              echo "app-name=$(yq -oy '.project.artifactId' pom.xml)" >> "$GITHUB_OUTPUT"
 
           - name: Setup IVM environment
             uses: asdf-vm/actions/install@v3
