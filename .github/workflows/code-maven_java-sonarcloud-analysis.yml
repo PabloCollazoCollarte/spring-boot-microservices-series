@@ -33,14 +33,12 @@
               mvn --version
               mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
-          - name: Set Java and Node for Sonarcloud plugin
-            run: echo -e "java temurin-17.0.8+7\nnodejs 20.10.0" > sonarcloud-tool_versions
-
           - name: Setup IVM environment
             uses: asdf-vm/actions/install@v3
             with:
-              tool_versions: sonarcloud-tool_versions
-
+              tool_versions: |
+                java temurin-17.0.8+7
+                nodejs 20.10.0
 
           - name: Setup Java environment vars
             run: |
