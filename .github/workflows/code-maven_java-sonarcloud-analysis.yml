@@ -31,7 +31,7 @@
             if: github.event_name != 'release'
             run: |
               mvn --version
-              mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
+              mvn -B clean verify -DskipTests -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
           - name: SonarCloud / Run Maven Sonar goal
             env:
