@@ -24,12 +24,6 @@
 		<module>zipkin-server</module>
 	</modules>
 
-	<properties>
-		<sonar.projectKey>PabloCollazoCollarte_spring-boot-microservices-series</sonar.projectKey>
-		<sonar.projectName>spring-boot-microservices-series</sonar.projectName>
-		<sonar.organization>pablocollazocollarte</sonar.organization>
-	</properties>
-
 	<build>
 		<pluginManagement>
 		<plugins>

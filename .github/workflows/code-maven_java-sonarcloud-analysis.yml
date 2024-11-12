@@ -33,6 +33,12 @@
               mvn --version
               mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
+          - name: Store project version
+            id: version
+            run: |
+              echo "app-version=$(xmllint --xpath "/*[name()='project']/*[name()='version']/text()" pom.xml)" >> "$GITHUB_OUTPUT"
+              echo "app-name=$(xmllint --xpath "/*[name()='project']/*[name()='artifactId']/text()" pom.xml)" >> "$GITHUB_OUTPUT"
+
           - name: Setup IVM environment
             uses: asdf-vm/actions/install@v3
             with:
@@ -55,7 +61,11 @@
               SONAR_SCANNER_OPTS: ''
             run: |
               mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
+                -Dsonar.projectKey=InditexTech_"${{ steps.version.outputs.app-name }}" \
+                -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
+                -Dsonar.projectVersion="${{ steps.version.outputs.app-version }}" \
                 -Dsonar.host.url="https://sonarcloud.io/" \
+                -Dsonar.organization=InditexTech \
                 -Dsonar.token="${LOGIN}" \
                 -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
                 -Dsonar.pullrequest.branch="$PR_HEAD_REF" \
@@ -65,4 +75,4 @@
                 -Dsonar.qualitygate.timeout=300 \
                 -Dsonar.pullrequest.provider=GitHub \
                 -Dsonar.pullrequest.github.repository="${{ github.repository }}" \
-                -Dsonar.pullrequest.github.summary_comment=true
+                -Dsonar.pullrequest.github.summary_comment=true"
