@@ -32,10 +32,18 @@ jobs:
         with:
           fetch-depth: 0
   
+      - name: Save tool-versions content
+        run: |
+          {
+            echo "TOOL_VERSIONS<<EOF"
+            cat code/.tool-versions
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
       - name: Setup IVM environment
         uses: asdf-vm/actions/install@v3
         with:
-          tool_versions: code/.tool-versions
+          tool_versions: ${{ ENV.TOOL_VERSIONS }}
   
       - name: Setup Java environment vars
         working-directory: code
@@ -70,6 +78,13 @@ jobs:
             java temurin-17.0.8+7
             nodejs 20.10.0
             maven 3.9.4
+
+      - name: Set asdf versions for SonarCloud
+        working-directory: code
+        run: |
+          asdf local java temurin-17.0.8+7
+          asdf local nodejs 20.10.0
+          asdf local maven 3.9.4
 
       - name: Setup Java environment vars
         working-directory: code
