@@ -1,78 +1,112 @@
 ---
-    name: code-maven-sonarcloud-analysis
-    run-name: Sonarcloud analysis on ${{ github.base_ref || github.ref_name }} branch
+name: code-maven-sonarcloud-analysis
+run-name: Sonarcloud analysis on ${{ github.base_ref || github.ref_name }} branch
 
-    on:
-      workflow_dispatch:
-      pull_request:
-    
-    jobs:
-      unit-tests:
-        name: SonarCloud / Unit Tests
-        timeout-minutes: 30
-        runs-on: ubuntu-20.04
-        steps:
-          - name: Checkout
-            uses: actions/checkout@v4
-            with:
-              fetch-depth: 0
+concurrency:
+  group: sonarcloud-${{ github.ref }}
+  cancel-in-progress: true
 
-          - name: Setup IVM environment
-            uses: asdf-vm/actions/install@v3
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [closed]
+    branches: ['develop', 'develop-*', 'main', 'main-*']
+    paths: ['code/**', '.github/workflows/code-*-sonarcloud-analysis.yml']
+  release:
+    types:
+      - published
 
-          - name: Setup Java environment vars
-            run: |
-              JAVA_HOME="$(asdf where java)"
-              echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-              echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
-              echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
+jobs:
+  unit-tests:
+    name: SonarCloud / Unit Tests
+    timeout-minutes: 30
+    if: ${{ ((github.event.pull_request.merged == true && (vars.DEVELOPMENT_FLOW != 'trunk-based-development' && (github.base_ref == 'develop' || startsWith(github.base_ref, 'develop-'))) ||
+        (vars.DEVELOPMENT_FLOW == 'trunk-based-development' && (github.base_ref == 'main' || startsWith(github.base_ref, 'main-')))) ||
+        github.event_name == 'workflow_dispatch' ||
+        github.event_name == 'release')
+        && vars.IS_INDITEXTECH_REPO == 'true' }}
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+  
+      - name: Setup IVM environment
+        uses: asdf-vm/actions/install@v3
+        with:
+          tool_versions: code/.tool-versions
+  
+      - name: Setup Java environment vars
+        working-directory: code
+        run: |
+          JAVA_HOME="$(asdf where java)"
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
+          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
 
-          - name: Run unit tests
-            if: github.event_name != 'release'
-            run: |
-              mvn --version
-              mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
+      - name: Run unit tests with release event
+        if: github.event_name == 'release'
+        working-directory: code
+        run: |
+          mvn -B clean verify -DskipEnforceSnapshots -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
-          - name: Store project version
-            id: version
-            run: |
-              echo "app-version=$(yq -oy '.project.version' pom.xml)" >> "$GITHUB_OUTPUT"
-              echo "app-name=$(yq -oy '.project.artifactId' pom.xml)" >> "$GITHUB_OUTPUT"
+      - name: Run unit tests
+        if: github.event_name != 'release'
+        working-directory: code
+        run: |
+          mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
-          - name: Setup IVM environment
-            uses: asdf-vm/actions/install@v3
-            with:
-              tool_versions: |
-                java temurin-17.0.8+7
-                nodejs 20.10.0
-                maven 3.9.4
+      - name: Store project version
+        id: version
+        run: |
+          echo "app-version=$(yq -oy '.project.version' code/pom.xml)" >> "$GITHUB_OUTPUT"
+          echo "app-name=$(yq -oy '.project.artifactId' code/pom.xml)" >> "$GITHUB_OUTPUT"
 
-          - name: Setup Java environment vars
-            run: |
-              JAVA_HOME="$(asdf where java)"
-              echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-              echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
-              echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
+      - name: Setup IVM environment
+        uses: asdf-vm/actions/install@v3
+        with:
+          tool_versions: |
+            java temurin-17.0.8+7
+            nodejs 20.10.0
+            maven 3.9.4
 
-          - name: SonarCloud / Run Maven Sonar goal
-            env:
-              PR_HEAD_REF: ${{ github.head_ref }}
-              LOGIN: ${{ secrets.SONAR_TOKEN }}
-              SONAR_SCANNER_OPTS: ''
-            run: |
-              mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
-                -Dsonar.projectKey=PabloCollazoCollarte_"${{ steps.version.outputs.app-name }}" \
-                -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
-                -Dsonar.projectVersion="${{ steps.version.outputs.app-version }}" \
-                -Dsonar.host.url="https://sonarcloud.io/" \
-                -Dsonar.organization=pablocollazocollarte \
-                -Dsonar.token="${LOGIN}" \
-                -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
-                -Dsonar.pullrequest.branch="$PR_HEAD_REF" \
-                -Dsonar.pullrequest.base=${{ github.base_ref }} \
-                -Dsonar.scm.revision=${{ github.event.pull_request.head.sha }} \
-                -Dsonar.qualitygate.wait=true \
-                -Dsonar.qualitygate.timeout=300 \
-                -Dsonar.pullrequest.provider=GitHub \
-                -Dsonar.pullrequest.github.repository="${{ github.repository }}" \
-                -Dsonar.pullrequest.github.summary_comment=true
+      - name: Setup Java environment vars
+        working-directory: code
+        run: |
+          JAVA_HOME="$(asdf where java)"
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
+          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
+
+      - name: SonarCloud / Run Maven Sonar goal with release event
+        env:
+          LOGIN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_SCANNER_OPTS: ''
+        if: ${{ github.event_name == 'release' }}
+        working-directory: code
+        run: |
+          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
+            -Dsonar.projectKey=InditexTech_"${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectVersion="${{ github.event.release.tag_name }}" \
+            -Dsonar.branch.name="release/${{ github.event.release.tag_name }}" \
+            -Dsonar.host.url="https://sonarcloud.io/" \
+            -Dsonar.organization=inditextech \
+            -Dsonar.token="${LOGIN}"
+  
+      - name: SonarCloud / Run Maven Sonar goal
+        env:
+          LOGIN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_SCANNER_OPTS: ''
+        if: ${{ github.event_name != 'release' }}
+        working-directory: code
+        run: |
+          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
+            -Dsonar.projectKey=InditexTech_"${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectVersion="${{ steps.version.outputs.app-version }}" \
+            -Dsonar.branch.name="${{ github.base_ref || github.ref_name }}" \
+            -Dsonar.host.url="https://sonarcloud.io/" \
+            -Dsonar.organization=inditextech \
+            -Dsonar.token="${LOGIN}"

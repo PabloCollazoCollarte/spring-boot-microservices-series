@@ -1,0 +1,150 @@
+---
+name: code-maven-PR-verify
+
+concurrency:
+  group: code-PR-verify-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - 'code/**'
+      - '.github/workflows/code*'
+
+jobs:
+  unit-tests:
+    name: Code / Verify
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: write
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Save tool-versions content
+        run: |
+          {
+            echo "TOOL_VERSIONS<<EOF"
+            cat code/.tool-versions
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Setup IVM environment
+        uses: asdf-vm/actions/install@v3
+        with:
+          tool_versions: ${{ ENV.TOOL_VERSIONS }}
+
+      - name: Setup Java environment vars
+        working-directory: code
+        run: |
+          JAVA_HOME="$(asdf where java)"
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
+          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
+
+      - name: Maven / Verify artifact with coverage
+        if: ${{ !(contains(github.event.pull_request.labels.*.name, 'autopublish/snapshot-binaries')) }}
+        working-directory: code
+        run: |
+          mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
+
+      - name: Prepare committer information and set GPG key
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SCM_COMMITTER_PGP_KEY: ${{ secrets.CI_GPG_SECRET_KEY }}
+        run: |
+          git config --global credential.helper store
+          cat <<EOT >> ~/.git-credentials
+          https://ci-user:$GITHUB_TOKEN@github.com
+          EOT
+
+          echo "$SCM_COMMITTER_PGP_KEY" | gpg --batch --import
+          git config user.name "InditexTech CI"
+          git config user.email "oso@inditex.com"
+
+      - name: Maven / Verify artifact with coverage and deploy PR-versioned SNAPSHOT binaries
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'autopublish/snapshot-binaries') && vars.IS_INDITEXTECH_REPO == 'true' }}
+        working-directory: code
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.CI_GPG_SECRET_KEY_PASSWORD }}
+        run: |
+          mvn -B build-helper:parse-version versions:set \
+            -DnewVersion="\${parsedVersion.majorVersion}.\${parsedVersion.minorVersion}.\${parsedVersion.incrementalVersion}+PR${{ github.event.pull_request.number }}-SNAPSHOT"
+
+          mvn -B clean install gpg:sign org.sonatype.central:central-publishing-maven-plugin:publish -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false -Dbuild.type=snapshot --settings=.mvn/settings.xml
+
+          VERSION=${{ steps.version.outputs.app-version }}
+          VERSION=${VERSION/-SNAPSHOT}+PR${{ github.event.pull_request.number }}-SNAPSHOT
+          MESSAGE="## PR-versioned SNAPSHOT binaries published successfully.
+          📦 The artifact version \`$VERSION\` has been published.
+          💡 You can use this SNAPSHOT version in your dependent project setting this version of the dependency in your \`pom.xml\`:
+          \`\`\`xml
+          <version>$VERSION</version>
+          \`\`\`
+          "
+
+          echo "$MESSAGE" >> "$GITHUB_STEP_SUMMARY"
+          gh pr comment ${{ github.event.pull_request.number }} --body "$MESSAGE"
+
+      - name: Maven / Process Surefire report and annotate PR
+        if: ${{ always() && !cancelled() }}
+        uses: scacap/action-surefire-report@a2911bd1a4412ec18dde2d93b1758b3e56d2a880
+        with:
+          fail_if_no_tests: false
+          create_check: false
+          check_name: "Code / Verify"
+
+      - name: Store project version
+        id: version
+        run: |
+          echo "app-version=$(yq -oy '.project.version' code/pom.xml)" >> "$GITHUB_OUTPUT"
+          echo "app-name=$(yq -oy '.project.artifactId' code/pom.xml)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup IVM environment
+        uses: asdf-vm/actions/install@v3
+        with:
+          tool_versions: |
+            java temurin-17.0.8+7
+            nodejs 20.10.0
+            maven 3.9.4
+
+      - name: Setup Java environment vars
+        working-directory: code
+        run: |
+          JAVA_HOME="$(asdf where java)"
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
+          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
+
+      - name: SonarCloud / Run Maven Sonar goal
+        env:
+          PR_HEAD_REF: ${{ github.head_ref }}
+          LOGIN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_SCANNER_OPTS: ''
+        working-directory: code
+        run: |
+          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
+            -Dsonar.projectKey=InditexTech_"${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectVersion="${{ steps.version.outputs.app-version }}" \
+            -Dsonar.host.url="https://sonarcloud.io/" \
+            -Dsonar.organization=inditextech \
+            -Dsonar.token="${LOGIN}" \
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
+            -Dsonar.pullrequest.branch="$PR_HEAD_REF" \
+            -Dsonar.pullrequest.base=${{ github.base_ref }} \
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha }} \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300 \
+            -Dsonar.pullrequest.provider=GitHub \
+            -Dsonar.pullrequest.github.repository="${{ github.repository }}" \
+            -Dsonar.pullrequest.github.summary_comment=true
