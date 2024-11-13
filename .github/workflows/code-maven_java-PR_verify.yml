@@ -46,6 +46,7 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
           echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
           echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
+          
 
       - name: Maven / Verify artifact with coverage
         if: ${{ !(contains(github.event.pull_request.labels.*.name, 'autopublish/snapshot-binaries')) }}
