@@ -104,12 +104,14 @@ jobs:
           check_name: "Code / Verify"
 
       - name: Store project version
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         id: version
         run: |
           echo "app-version=$(yq -oy '.project.version' code/pom.xml)" >> "$GITHUB_OUTPUT"
           echo "app-name=$(yq -oy '.project.artifactId' code/pom.xml)" >> "$GITHUB_OUTPUT"
 
       - name: Setup IVM environment
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         uses: asdf-vm/actions/install@v3
         with:
           tool_versions: |
@@ -118,6 +120,7 @@ jobs:
             maven 3.9.4
 
       - name: Set asdf versions for SonarCloud
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         working-directory: code
         run: |
           asdf local java temurin-17.0.8+7
@@ -125,6 +128,7 @@ jobs:
           asdf local maven 3.9.4
 
       - name: Setup Java environment vars
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         working-directory: code
         run: |
           JAVA_HOME="$(asdf where java)"
@@ -133,6 +137,7 @@ jobs:
           echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
 
       - name: SonarCloud / Run Maven Sonar goal
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         env:
           PR_HEAD_REF: ${{ github.head_ref }}
           LOGIN: ${{ secrets.SONAR_TOKEN }}
@@ -140,11 +145,11 @@ jobs:
         working-directory: code
         run: |
           mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
-            -Dsonar.projectKey=PabloCollazoCollarte_"${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectKey=InditexTech_"${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectVersion="${{ steps.version.outputs.app-version }}" \
             -Dsonar.host.url="https://sonarcloud.io/" \
-            -Dsonar.organization=pablocollazocollarte \
+            -Dsonar.organization=inditextech \
             -Dsonar.token="${LOGIN}" \
             -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
             -Dsonar.pullrequest.branch="$PR_HEAD_REF" \
