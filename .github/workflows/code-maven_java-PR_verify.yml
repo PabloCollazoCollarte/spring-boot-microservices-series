@@ -39,14 +39,6 @@ jobs:
         with:
           tool_versions: ${{ ENV.TOOL_VERSIONS }}
 
-      - name: Setup Java environment vars
-        working-directory: code
-        run: |
-          JAVA_HOME="$(asdf where java)"
-          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
-          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
-
       - name: Maven / Verify artifact with coverage
         if: ${{ !(contains(github.event.pull_request.labels.*.name, 'autopublish/snapshot-binaries')) }}
         working-directory: code
@@ -126,15 +118,6 @@ jobs:
           asdf local java temurin-17.0.8+7
           asdf local nodejs 20.10.0
           asdf local maven 3.9.4
-
-      - name: Setup Java environment vars
-        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
-        working-directory: code
-        run: |
-          JAVA_HOME="$(asdf where java)"
-          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
-          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
 
       - name: SonarCloud / Run Maven Sonar goal
         if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
