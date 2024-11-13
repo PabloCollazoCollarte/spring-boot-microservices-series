@@ -132,6 +132,7 @@ jobs:
           SONAR_SCANNER_OPTS: ''
         working-directory: code
         run: |
+          mvn --version
           mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
             -Dsonar.projectKey=InditexTech_"${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
