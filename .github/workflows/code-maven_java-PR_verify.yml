@@ -120,6 +120,8 @@ jobs:
       - name: Setup Java environment vars
         working-directory: code
         run: |
+          asdf where java
+          java -version
           JAVA_HOME="$(asdf where java)"
           echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
           echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
