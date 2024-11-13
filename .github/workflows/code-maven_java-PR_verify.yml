@@ -124,6 +124,7 @@ jobs:
           asdf global maven 3.9.4
           asdf current java
           java -version
+          asdf where java
 
       - name: Setup Java environment vars
         working-directory: code
