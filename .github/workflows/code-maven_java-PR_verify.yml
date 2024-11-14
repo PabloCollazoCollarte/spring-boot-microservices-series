@@ -26,6 +26,24 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - name: Setup Maven Cache
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+    
+      - name: Setup asdf Cache
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: ~/.asdf/data
+          key: ${{ runner.os }}-asdf-${{ hashFiles('**/.tool-versions') }}
+          restore-keys: |
+            ${{ runner.os }}-asdf-
+
       - name: Save tool-versions content
         run: |
           {
@@ -34,10 +52,23 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_ENV"
 
-      - name: Setup IVM environment
+      - name: Maven / Setup IVM environment
         uses: asdf-vm/actions/install@v3
         with:
-          tool_versions: ${{ ENV.TOOL_VERSIONS }}
+          tool_versions: ${{ env.TOOL_VERSIONS }}
+
+      - name: Setup Java environment vars
+        working-directory: code
+        run: |
+          JAVA_HOME="$(asdf where java)"
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+
+      - name: Store project version
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
+        id: version
+        run: |
+          echo "app-version=$(yq -oy '.project.version' code/pom.xml)" >> "$GITHUB_OUTPUT"
+          echo "app-name=$(yq -oy '.project.artifactId' code/pom.xml)" >> "$GITHUB_OUTPUT"
 
       - name: Maven / Verify artifact with coverage
         if: ${{ !(contains(github.event.pull_request.labels.*.name, 'autopublish/snapshot-binaries')) }}
@@ -95,14 +126,7 @@ jobs:
           create_check: false
           check_name: "Code / Verify"
 
-      - name: Store project version
-        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
-        id: version
-        run: |
-          echo "app-version=$(yq -oy '.project.version' code/pom.xml)" >> "$GITHUB_OUTPUT"
-          echo "app-name=$(yq -oy '.project.artifactId' code/pom.xml)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup IVM environment
+      - name: SonarCloud / Setup asdf tools
         if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         uses: asdf-vm/actions/install@v3
         with:
@@ -111,13 +135,20 @@ jobs:
             nodejs 20.10.0
             maven 3.9.4
 
-      - name: Set asdf versions for SonarCloud
+      - name: SonarCloud / Set asdf versions
         if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         working-directory: code
         run: |
           asdf local java temurin-17.0.8+7
           asdf local nodejs 20.10.0
           asdf local maven 3.9.4
+
+      - name: Setup Java environment vars
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
+        working-directory: code
+        run: |
+          JAVA_HOME="$(asdf where java)"
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
 
       - name: SonarCloud / Run Maven Sonar goal
         if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
@@ -128,11 +159,11 @@ jobs:
         working-directory: code
         run: |
           mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
-            -Dsonar.projectKey=PabloCollazoCollarte_"${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectKey=InditexTech_"${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectVersion="${{ steps.version.outputs.app-version }}" \
             -Dsonar.host.url="https://sonarcloud.io/" \
-            -Dsonar.organization=pablocollazocollarte \
+            -Dsonar.organization=inditextech \
             -Dsonar.token="${LOGIN}" \
             -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
             -Dsonar.pullrequest.branch="$PR_HEAD_REF" \
