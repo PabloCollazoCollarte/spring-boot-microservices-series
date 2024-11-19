@@ -16,6 +16,9 @@ on:
     types:
       - published
 
+env:
+  MAVEN_OPTS: "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
+
 jobs:
   unit-tests:
     name: SonarCloud / Unit Tests
@@ -31,7 +34,25 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-  
+
+      - name: Setup Maven Cache
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+    
+      - name: Setup asdf Cache
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: ~/.asdf/data
+          key: ${{ runner.os }}-asdf-${{ hashFiles('**/.tool-versions') }}
+          restore-keys: |
+            ${{ runner.os }}-asdf-
+
       - name: Save tool-versions content
         run: |
           {
@@ -40,30 +61,28 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_ENV"
 
-      - name: Setup IVM environment
+      - name: Maven / Setup asdf tools
         uses: asdf-vm/actions/install@v3
         with:
-          tool_versions: ${{ ENV.TOOL_VERSIONS }}
+          tool_versions: ${{ env.TOOL_VERSIONS }}
   
       - name: Setup Java environment vars
         working-directory: code
         run: |
           JAVA_HOME="$(asdf where java)"
           echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
-          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
 
-      - name: Run unit tests with release event
+      - name: Maven / Run unit tests with release event
         if: github.event_name == 'release'
         working-directory: code
         run: |
-          mvn -B clean verify -DskipEnforceSnapshots -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
+          mvn -B clean verify -Djacoco.skip=false -DskipEnforceSnapshots -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
-      - name: Run unit tests
+      - name: Maven / Run unit tests
         if: github.event_name != 'release'
         working-directory: code
         run: |
-          mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
+          mvn -B clean verify -Djacoco.skip=false -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
       - name: Store project version
         id: version
@@ -71,7 +90,7 @@ jobs:
           echo "app-version=$(yq -oy '.project.version' code/pom.xml)" >> "$GITHUB_OUTPUT"
           echo "app-name=$(yq -oy '.project.artifactId' code/pom.xml)" >> "$GITHUB_OUTPUT"
 
-      - name: Setup IVM environment
+      - name: SonarCloud / Setup asdf tools
         uses: asdf-vm/actions/install@v3
         with:
           tool_versions: |
@@ -79,7 +98,7 @@ jobs:
             nodejs 20.10.0
             maven 3.9.4
 
-      - name: Set asdf versions for SonarCloud
+      - name: SonarCloud / Set asdf versions
         working-directory: code
         run: |
           asdf local java temurin-17.0.8+7
@@ -91,8 +110,6 @@ jobs:
         run: |
           JAVA_HOME="$(asdf where java)"
           echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
-          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
 
       - name: SonarCloud / Run Maven Sonar goal with release event
         env:
@@ -101,14 +118,16 @@ jobs:
         if: ${{ github.event_name == 'release' }}
         working-directory: code
         run: |
+          JACOCO_REPORT_PATH="$GITHUB_WORKSPACE/code/jacoco-report-aggregate/target/site/jacoco-aggregate/jacoco.xml"
           mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
-            -Dsonar.projectKey=InditexTech_"${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectKey=PabloCollazoCollarte_"${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectVersion="${{ github.event.release.tag_name }}" \
             -Dsonar.branch.name="release/${{ github.event.release.tag_name }}" \
             -Dsonar.host.url="https://sonarcloud.io/" \
-            -Dsonar.organization=inditextech \
-            -Dsonar.token="${LOGIN}"
+            -Dsonar.organization=pablocollazocollarte \
+            -Dsonar.token="${LOGIN}" \
+            -Dsonar.coverage.jacoco.xmlReportPaths="$JACOCO_REPORT_PATH"
   
       - name: SonarCloud / Run Maven Sonar goal
         env:
@@ -117,6 +136,7 @@ jobs:
         if: ${{ github.event_name != 'release' }}
         working-directory: code
         run: |
+          JACOCO_REPORT_PATH="$GITHUB_WORKSPACE/code/jacoco-report-aggregate/target/site/jacoco-aggregate/jacoco.xml"
           mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
             -Dsonar.projectKey=PabloCollazoCollarte_"${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
@@ -124,4 +144,5 @@ jobs:
             -Dsonar.branch.name="${{ github.base_ref || github.ref_name }}" \
             -Dsonar.host.url="https://sonarcloud.io/" \
             -Dsonar.organization=pablocollazocollarte \
-            -Dsonar.token="${LOGIN}"
+            -Dsonar.token="${LOGIN}" \
+            -Dsonar.coverage.jacoco.xmlReportPaths="$JACOCO_REPORT_PATH"

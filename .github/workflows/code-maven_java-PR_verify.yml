@@ -11,6 +11,9 @@ on:
       - 'code/**'
       - '.github/workflows/code*'
 
+env:
+  MAVEN_OPTS: "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
+
 jobs:
   unit-tests:
     name: Code / Verify
@@ -26,6 +29,24 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - name: Setup Maven Cache
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+    
+      - name: Setup asdf Cache
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: ~/.asdf/data
+          key: ${{ runner.os }}-asdf-${{ hashFiles('**/.tool-versions') }}
+          restore-keys: |
+            ${{ runner.os }}-asdf-
+
       - name: Save tool-versions content
         run: |
           {
@@ -34,27 +55,32 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_ENV"
 
-      - name: Setup IVM environment
+      - name: Maven / Setup IVM environment
         uses: asdf-vm/actions/install@v3
         with:
-          tool_versions: ${{ ENV.TOOL_VERSIONS }}
+          tool_versions: ${{ env.TOOL_VERSIONS }}
 
       - name: Setup Java environment vars
         working-directory: code
         run: |
           JAVA_HOME="$(asdf where java)"
           echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
-          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
+
+      - name: Store project version
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
+        id: version
+        run: |
+          echo "app-version=$(yq -oy '.project.version' code/pom.xml)" >> "$GITHUB_OUTPUT"
+          echo "app-name=$(yq -oy '.project.artifactId' code/pom.xml)" >> "$GITHUB_OUTPUT"
 
       - name: Maven / Verify artifact with coverage
         if: ${{ !(contains(github.event.pull_request.labels.*.name, 'autopublish/snapshot-binaries')) }}
         working-directory: code
         run: |
-          mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
+          mvn -B clean verify -Djacoco.skip=false -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
       - name: Prepare committer information and set GPG key
-        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
+        if: ${{ vars.IS_INDITEXTECH_REPO != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SCM_COMMITTER_PGP_KEY: ${{ secrets.CI_GPG_SECRET_KEY }}
@@ -80,7 +106,7 @@ jobs:
           mvn -B build-helper:parse-version versions:set \
             -DnewVersion="\${parsedVersion.majorVersion}.\${parsedVersion.minorVersion}.\${parsedVersion.incrementalVersion}+PR${{ github.event.pull_request.number }}-SNAPSHOT"
 
-          mvn -B clean install gpg:sign org.sonatype.central:central-publishing-maven-plugin:publish -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false -Dbuild.type=snapshot --settings=.mvn/settings.xml
+          mvn -B clean install gpg:sign org.sonatype.central:central-publishing-maven-plugin:publish -Djacoco.skip=false -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false -Dbuild.type=snapshot --settings=.mvn/settings.xml
 
           VERSION=${{ steps.version.outputs.app-version }}
           VERSION=${VERSION/-SNAPSHOT}+PR${{ github.event.pull_request.number }}-SNAPSHOT
@@ -103,14 +129,7 @@ jobs:
           create_check: false
           check_name: "Code / Verify"
 
-      - name: Store project version
-        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
-        id: version
-        run: |
-          echo "app-version=$(yq -oy '.project.version' code/pom.xml)" >> "$GITHUB_OUTPUT"
-          echo "app-name=$(yq -oy '.project.artifactId' code/pom.xml)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup IVM environment
+      - name: SonarCloud / Setup asdf tools
         if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         uses: asdf-vm/actions/install@v3
         with:
@@ -119,7 +138,7 @@ jobs:
             nodejs 20.10.0
             maven 3.9.4
 
-      - name: Set asdf versions for SonarCloud
+      - name: SonarCloud / Set asdf versions
         if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         working-directory: code
         run: |
@@ -133,8 +152,6 @@ jobs:
         run: |
           JAVA_HOME="$(asdf where java)"
           echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-          echo "JAVA_CACERTS_PATH=$JAVA_HOME/lib/security" >> $GITHUB_ENV
-          echo "JAVA_CACERTS=$JAVA_HOME/lib/security/cacerts" >> $GITHUB_ENV
 
       - name: SonarCloud / Run Maven Sonar goal
         if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
@@ -144,6 +161,7 @@ jobs:
           SONAR_SCANNER_OPTS: ''
         working-directory: code
         run: |
+          JACOCO_REPORT_PATH="$GITHUB_WORKSPACE/code/jacoco-report-aggregate/target/site/jacoco-aggregate/jacoco.xml"
           mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
             -Dsonar.projectKey=PabloCollazoCollarte_"${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
@@ -159,4 +177,5 @@ jobs:
             -Dsonar.qualitygate.timeout=300 \
             -Dsonar.pullrequest.provider=GitHub \
             -Dsonar.pullrequest.github.repository="${{ github.repository }}" \
-            -Dsonar.pullrequest.github.summary_comment=true
+            -Dsonar.pullrequest.github.summary_comment=true \
+            -Dsonar.coverage.jacoco.xmlReportPaths="$JACOCO_REPORT_PATH"
