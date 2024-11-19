@@ -77,7 +77,7 @@ jobs:
           mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
       - name: Prepare committer information and set GPG key
-        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
+        if: ${{ vars.IS_INDITEXTECH_REPO != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SCM_COMMITTER_PGP_KEY: ${{ secrets.CI_GPG_SECRET_KEY }}
@@ -158,12 +158,13 @@ jobs:
           SONAR_SCANNER_OPTS: ''
         working-directory: code
         run: |
+          JACOCO_REPORT_PATH="$GITHUB_WORKSPACE/code/jacoco-report-aggregate/target/site/jacoco-aggregate/jacoco.xml"
           mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar \
-            -Dsonar.projectKey=InditexTech_"${{ steps.version.outputs.app-name }}" \
+            -Dsonar.projectKey=PabloCollazoCollarte_"${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectName="${{ steps.version.outputs.app-name }}" \
             -Dsonar.projectVersion="${{ steps.version.outputs.app-version }}" \
             -Dsonar.host.url="https://sonarcloud.io/" \
-            -Dsonar.organization=inditextech \
+            -Dsonar.organization=pablocollazocollarte \
             -Dsonar.token="${LOGIN}" \
             -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
             -Dsonar.pullrequest.branch="$PR_HEAD_REF" \
@@ -173,4 +174,5 @@ jobs:
             -Dsonar.qualitygate.timeout=300 \
             -Dsonar.pullrequest.provider=GitHub \
             -Dsonar.pullrequest.github.repository="${{ github.repository }}" \
-            -Dsonar.pullrequest.github.summary_comment=true
+            -Dsonar.pullrequest.github.summary_comment=true \
+            -Dsonar.coverage.jacoco.xmlReportPaths="$JACOCO_REPORT_PATH"
