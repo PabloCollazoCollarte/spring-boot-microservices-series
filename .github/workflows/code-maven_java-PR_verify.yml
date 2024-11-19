@@ -80,7 +80,7 @@ jobs:
           mvn -B clean verify -Djacoco.skip=false -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
       - name: Prepare committer information and set GPG key
-        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
+        if: ${{ vars.IS_INDITEXTECH_REPO != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SCM_COMMITTER_PGP_KEY: ${{ secrets.CI_GPG_SECRET_KEY }}
