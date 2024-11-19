@@ -11,6 +11,9 @@ on:
       - 'code/**'
       - '.github/workflows/code*'
 
+env:
+  MAVEN_OPTS: "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
+
 jobs:
   unit-tests:
     name: Code / Verify
@@ -74,10 +77,10 @@ jobs:
         if: ${{ !(contains(github.event.pull_request.labels.*.name, 'autopublish/snapshot-binaries')) }}
         working-directory: code
         run: |
-          mvn -B clean verify -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
+          mvn -B clean verify -Djacoco.skip=false -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false
 
       - name: Prepare committer information and set GPG key
-        if: ${{ vars.IS_INDITEXTECH_REPO != 'true' }}
+        if: ${{ vars.IS_INDITEXTECH_REPO == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SCM_COMMITTER_PGP_KEY: ${{ secrets.CI_GPG_SECRET_KEY }}
@@ -103,7 +106,7 @@ jobs:
           mvn -B build-helper:parse-version versions:set \
             -DnewVersion="\${parsedVersion.majorVersion}.\${parsedVersion.minorVersion}.\${parsedVersion.incrementalVersion}+PR${{ github.event.pull_request.number }}-SNAPSHOT"
 
-          mvn -B clean install gpg:sign org.sonatype.central:central-publishing-maven-plugin:publish -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false -Dbuild.type=snapshot --settings=.mvn/settings.xml
+          mvn -B clean install gpg:sign org.sonatype.central:central-publishing-maven-plugin:publish -Djacoco.skip=false -DskipITs -DfailIfNoTests=false -Dmaven.test.failure.ignore=false -Dbuild.type=snapshot --settings=.mvn/settings.xml
 
           VERSION=${{ steps.version.outputs.app-version }}
           VERSION=${VERSION/-SNAPSHOT}+PR${{ github.event.pull_request.number }}-SNAPSHOT
